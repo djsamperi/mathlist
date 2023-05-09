@@ -1,1 +1,2 @@
-# mathlist - Mathematical operations like FFT and Wavelet on Haskell lists
+# mathlist - Haskell library Math.List
+**mathlist** includes mathematical operations like FFT and Wavelets applied to list.

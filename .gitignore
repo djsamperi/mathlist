@@ -1,0 +1,6 @@
+# Build files
+.stack-work/*
+
+# Emacs temp files
+*~
+.\#*

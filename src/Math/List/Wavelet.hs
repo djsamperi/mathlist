@@ -17,7 +17,7 @@ compression (in image analysis, for example).
 
 Only the 1D case is implemented here. Extension to higher dimensions
 is straightforward, but the list implementation used here may not
-be appropriate for this purpose. This implementation is suitble
+be appropriate for this purpose. This implementation is suitable
 for small or moderate sized 1D problems, and for understanding the
 underlying theory which does not change as the dimension increases.
 
@@ -56,7 +56,7 @@ import Data.List
 -- The Daubechies wavelets are defined in __TenLectures__.
 -- The input vector is the initial 'detail' vector.
 -- The first level of the transform splits this vector into two
--- parts, 'coarse' (coarse coefficieents---see below) 
+-- parts, 'coarse' (coarse coefficients---see below) 
 -- and 'detail' (detail coefficients). Then the 'coarse'
 -- vector is split into two parts, one 'coarse' and the other 'detail'
 -- (the previous 'detail' vector is unchanged). This continues until
@@ -128,7 +128,8 @@ import Data.List
 -- Let's take a look at the simplest Daubechies wavelet (N=2) by taking the
 -- inverse transform of a delta function at position 5...
 --
--- >>> wavelet2 = iwt1d x 2 0 10
+-- >>> sig = deltaFunc 5 1024
+-- >>> wavelet2 = iwt1d sig 2 0 10
 -- >>> [rgraph| plot(wavelet2_hs,type='l') |]
 --
 -- ![Wavelet2](https://humangarden.net/images/Wavelet2.png)
@@ -145,7 +146,7 @@ import Data.List
 -- ![TwoSpikes](https://humangarden.net/images/TwoSpikes.png)
 --
 -- The spikes show up in the scalogram at about 1/2 the distance
--- in scale units, and there are "harmonics" at the coaser scales
+-- in scale units, and there are "harmonics" at the coarser scales
 -- (on the left).
 --
 wt1d :: [Double] -> Int -> Int -> Int -> [Double]

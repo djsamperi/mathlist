@@ -1,5 +1,6 @@
 # Build files
 .stack-work/*
+dist-newstyle/*
 
 # Emacs temp files
 *~

@@ -18,6 +18,29 @@ can result in a huge performance penalty (hours instead of seconds),
 so it is important to keep this in mind when working with large
 input vectors.
 
+The discrete Fourier transform can be viewed as an approximation to
+the Fourier integral of a non-periodic function that is very small
+outside a finite interval. Alternatively, and more commonly, it
+can be viewed as a partial scan of a function that may behave
+arbitrarily outside of the scanned (or sampled) points (like an
+MRI scan of part of the human body). When we observe below that
+the transform is periodic, we are referring to properties of
+the mathematical model, not of the signal under study (a periodic
+MRI scan does not mean the body is periodic!).
+
+A periodic function does not have a Fourier integral transform, so
+it is not correct to say that the Fourier series is a special case
+of the Fourier integral transform, and vis versa. Both are probes
+used to study certain aspects of signals, with
+the help of a particular choice of basis. The wavelet transform
+uses a different choice of basis.
+
+Shannon's sampling theorem tells us that if we sample a
+band-limited function fast enough, the function is fully
+determined by the sampled values. In other words, the
+discrete Shannon wavelet basis is sufficient to represent the
+function exactly in this case.
+
 -}
 module Math.List.FFT (
   fft,
@@ -34,8 +57,8 @@ import Data.List
 
 -- |Pure and simple fast Fourier transform following the recursive
 -- algorithm that appears in /Mathematical Foundations of Data Sciences/ by
--- Gabriel Peyre' (2021). The Haskell implementation
--- closely follows the mathematical specifications. The input vector 
+-- Gabriel Peyre' (2021). The Haskell implementation is a direct translation
+-- of the mathematical specifications. The input vector 
 -- size \( N \) must be a power of 2 (the functions 'ft1d' and 'ift1d' work
 -- with vectors of any size, but they may be extremely slow for large input vectors).
 --
@@ -70,7 +93,7 @@ import Data.List
 --
 -- \[
 -- \begin{eqnarray}
--- X_{2k} &=& \sum_{n=0}^{N-1} x_n e^{-2\pi i n k/N} \\
+-- X_{2k} &=& \sum_{n=0}^{N-1} x_n e^{-2\pi i n k/N'} \\
 -- &=& \sum_{n=0}^{N'-1} x_n e^{-2\pi i n k/N'}
 -- + \sum_{n=0}^{N'-1} x_{n+N'} e^{-2\pi i (n+N')k/N'} \\
 -- &=& \sum_{n=0}^{N'-1} (x_n + x_{n+N'}) e^{-2\pi i n k/N'}
@@ -199,7 +222,9 @@ ift1d f = [z | k <- [0..(n-1)], let z = sum $ zipWith (*) (iterate (* alpha^k) 1
 -- frequency point is in the center of the range. To understand
 -- why this is needed, it is helpful to recall the following        
 -- approximation for the continuous Fourier transform, for a        
--- function that is very small outside the interval \( [a,b] \).        
+-- function that is very small outside the interval \( [a,b] \). As noted
+-- in the introductory comments above, this is one of two possible        
+-- interpretations of the discrete Fourier transform. We have        
 --        
 -- \[ 
 -- X(f) \approx \int_a^b x(t) e^{-2\pi i f t} dt \approx 
@@ -233,11 +258,15 @@ ift1d f = [z | k <- [0..(n-1)], let z = sum $ zipWith (*) (iterate (* alpha^k) 1
 -- \( p \) (which we can do without loss of generality), so the exponential factor in the equation for \( X(k\Delta f) \) is periodic with     
 -- period \( N \).        
 --        
--- In the standard discrete Fourier transform we assume the time grid is \( t = j\Delta t \),       
--- for \( j = 0,1,2,...,N-1 \), and the N-point window for the discrtee Fourier transform is        
--- \( f = k\Delta f \), for \( k = 0,1,2,...,N-1 \). In particular, zero frequency corresponds       
--- to \( k=0 \), and because of periodicity, \( X(-k\Delta f) = X((N-k)\Delta f) \), for        
--- \( k = N/2+1,N/2+2,...,N-1 \). This shows that negative frequencies wrap around in a circular        
+-- In the standard discrete Fourier transform we define the time and frequency grid as follows:
+-- \( t = j\Delta t \),       
+-- for \( j = 0,1,2,...,N-1 \), and 
+-- \( f = k\Delta f \), for \( k = 0,1,2,...,N-1 \). In terms of our approximation above, this implicitly
+-- assumes that \( a = 0 \), so the exponential term in the expression for \( X(k\Delta f) \) does not        
+-- appear. It also assumes that the zero frequency point is on the left edge where \( k = 0 \). It
+-- follows from periodicity that        
+-- \( X(-k\Delta f) = X((N-k)\Delta f) \), for        
+-- \( k = N/2+1,N/2+2,...,N-1 \), so negative frequencies wrap around in a circular        
 -- fashion and appear to the right of the mid point. In many applications it is more natural to
 -- work with \( \tilde{X}(k) = X((k+N/2) \mod N) \), the circular rotation of $X$ to the left        
 -- by \( N/2 \). This brings the zero frequency to the center of the range, and places the negative        
@@ -320,8 +349,8 @@ fftshift v = do
 -- Note that the sample size  
 -- (a power of 2) is less than the size of the input vector, and  
 -- this introduces some noise. See Wikipedia entry on FM broadcasting
--- for more information. Note that "RDS" in the R context means
--- R Data Serialization, unrelated to RDS used in FM broadcasting!
+-- for more information. (Note that "RDS" in the R context means
+-- R Data Serialization, unrelated to RDS used in FM broadcasting!)
 --  
 -- @  
 --  getData :: R s [Double]
@@ -338,7 +367,7 @@ fftshift v = do
 -- fftdata = fftscale (toDoubleComplex fmiq) 0 (2^15) (fs/10) 0  
 -- freq = fst fftdata  
 -- mag  = snd fftdata  
--- [rgraph} plot(freq_hs, mag_hs, type='l',xlab="Freq",  
+-- [rgraph| plot(freq_hs, mag_hs, type='l',xlab="Freq",  
 --          ylab="Rel Amp [dB down from max]",main="FM Spectrum")  
 --          abline(v=19000,col='red')  -- Pilot frequency
 --          abline(v=38000,col='pink') -- L-R channel
@@ -377,15 +406,15 @@ fftscale x nfirst nsamples fs fc = (freqs,fftscaled)
 -- where \( f_c \) is a carrier frequency (modern technologies like
 -- WiFi/OFDM employ more than one carrier), and        
 -- the functions \( I(t) \) and \( Q(t) \) encode information about        
--- amplitude and phase. In this way two-dimentional information is
--- encoded in a one-dimentional signal (the extra dimension comes from phase
+-- amplitude and phase. In this way two-dimensional information is
+-- encoded in a one-dimensional signal (the extra dimension comes from phase
 -- differences or timing). Digital information is sent by subdividing the
 -- complex plane of \( I + j Q \) into regions corresponding to
 -- different symbols of the alphabet to be used (such regions are        
--- shown in a constellation diagram). 
+-- shown in a constellation diagram, like the one shown below).
 --
 -- The image below shows part of the GUI for
--- a GNURadio FM receiver and decoder (available at
+-- a GNU Radio FM receiver and decoder (available at
 -- [GR-RDS](https://github.com/bastibl/gr-rds.git)) where the complex
 -- \( I + j Q \) plane is divided into two halves corresponding to two        
 -- values of a binary signal that carries information like station name,        
@@ -437,7 +466,7 @@ fftscale x nfirst nsamples fs fc = (freqs,fftscaled)
 -- S. Lawrence Marple, Jr, IEEE Trans. on Signal Processing,
 -- 47(9), 1999. 
 -- The goal of this paper is to define the discrete analytic signal in        
--- such a way that properties of the continous case are preserved, in
+-- such a way that properties of the continuous case are preserved, in
 -- particular, the real part of the analytic signal should be the 
 -- original signal, and the real and imaginary parts should be
 -- orthogonal. It is shown that this will be the case if we modify
@@ -452,11 +481,11 @@ fftscale x nfirst nsamples fs fc = (freqs,fftscaled)
 -- domain, where it is defined as        
 -- \( \mathbb{H}(x)(t) = \frac{1}{\pi} \int_{-\infty}^{\infty} \frac{x(s)}{t-s} ds, \)
 -- a convolution with a singular kernel.        
--- (The Hilbert transform is closely related to the Cauchy integral
+-- The Hilbert transform is closely related to the Cauchy integral
 -- formula, potential theory, and many other areas of mathematical        
 -- analysis. See 
 -- /The Cauchy Transform, Potential Theory, and Conformal Mapping/ by Steven R. Bell (2015), or /Wavelets and operators/ by Yves Meyer (1992), or
--- /Functional Analysis/ by Walter Rudin (1991).)     
+-- /Functional Analysis/ by Walter Rudin (1991).
 --       
 -- The
 -- analytic signal is defined in terms of the Hilbert transform:        
@@ -469,7 +498,7 @@ fftscale x nfirst nsamples fs fc = (freqs,fftscaled)
 -- exponentials with both positive and negative frequencies. Indeed, just
 -- consider one (real) component 
 -- \( \cos(\omega t) = (e^{j\omega t} + e^{-j\omega t})/2. \) 
--- It contributes both positive and negtive frequencies. But its contribution to the analytic
+-- It contributes both positive and negative frequencies. But its contribution to the analytic
 -- signal is:        
 -- \[        
 -- \cos(\omega t) + j\sin(\omega t) =       

@@ -5,4 +5,12 @@
 
 ## 0.1.0.1 - 2023-05-15
 * Fixed some typos, more detailed docs.
+
+## 0.1.0.2 - 2023-05-17
+* Updated resolver to lts-20.21
+* Minor documentation changes.	
+
+## 0.1.0.3 - 2023-05-17
+* Fixed typo that caused build failure.
+
 	

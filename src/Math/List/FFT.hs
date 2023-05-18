@@ -26,13 +26,14 @@ arbitrarily outside of the scanned (or sampled) points (like an
 MRI scan of part of the human body). When we observe below that
 the transform is periodic, we are referring to properties of
 the mathematical model, not of the signal under study (a periodic
-MRI scan does not mean the body is periodic!).
+MRI scan does not mean the human body is periodic!).
 
-A periodic function does not have a Fourier integral transform, so
-it is not correct to say that the Fourier series is a special case
-of the Fourier integral transform, and vis versa. Both are probes
-used to study certain aspects of signals, with
-the help of a particular choice of basis. The wavelet transform
+A periodic function is not integrable over all real numbers, so
+it doesn't have a Fourier integral (ignoring weak forms of
+convergence), and the Fourier series applies only to periodic
+functions, so Fourier series and the Fourier integral are
+distinct probes that depend on a particular choice of basis.
+The wavelet transform
 uses a different choice of basis.
 
 Shannon's sampling theorem tells us that if we sample a

@@ -36,9 +36,9 @@ Vol XLI, 909-996 (1988).
 module Math.List.Wavelet (
   wt1d,
   iwt1d,
-  conv1d,
-  cconv1d,
-  cconv1dnc,
+  cconv1d, -- circular convolution with centering
+  cconv1dnc,-- no centering (standard)
+  conv1d,  -- standard convolution with zero padding
   deltaFunc) where
 
 import Data.Complex
@@ -192,47 +192,89 @@ deltaFunc :: Num a => Int -> Int -> [a]
 deltaFunc k n = take k l ++ [1] ++ drop (k+1) l
   where l = replicate n 0
         
-subsample :: [Double] -> [Double]
+subsample :: (Num a) => [a] -> [a]
 subsample [x,y] = [x]
 subsample (x:(y:xs)) = x:subsample xs
 
-upsample :: [Double] -> [Double]
+upsample :: (Num a) => [a] -> [a]
 upsample [] = [0]
 upsample (x:[]) = [x,0]
 upsample (x:xs) = (x:(0:upsample xs))
 
--- |'zeropad' pads a vector with zeros as neded.
--- Zeropad a vector
-zeropad :: [Double] -> Int -> Double
-zeropad x i = if (i < 0 || i >= len) then 0.0 else x!!i
-  where len = length x
-        
 -- |'cconv1d' is the 1-dimensional circular convolution (with centering).
 --
 -- > Usage: cconv1d h x        
 --        
 -- * `x` - input signal        
--- * `h` - filter to convolve with.        
+-- * `h` - filter to convolve with.
 --        
-cconv1d :: [Double] -> [Double] -> [Double]
-cconv1d h x = [sum [h!!i * x!!((j-i+pc) `mod` n) | i <- [0..(m-1)]] | j <- [0..(n-1)] ] 
-  where m = length h
-        n = length x
-        pc = (m-1) `div` 2 -- set pc==0 to turn off centering on h.
+-- Let 'N' = length x, and 'M' = length h, and assume \( M \leq N \). The
+-- convolution with centering offset 'p' is defined by
+-- \[
+-- y_i = \sum_{j=0}^{M-1} h_j x_{i-j+p},\qquad i=0,1,2,...,N-1,
+-- \]
+-- where \( p = (M-1)/2 \) when M is odd. The idea is to have
+-- each \( y_i \) equal a weighted average of values of \( x_j \)
+-- for \( j \) near \( i \), because \( i \) is in the middle of
+-- the support of \( h \), approximately.
+--
+-- For this to be well-defined for the specified range of \( i \),
+-- \( x_i \) must be extended periodically outside of the
+-- range \( 0 \leq i \leq N-1 \), like this...
+-- \[
+-- x_{J} \cdots x_{N-1} x_0 x_1 \cdots x_{N-1} x_0 x_1 \cdots x_{p-1},
+-- \]
+-- where \( J \) is determined by the condition that we need
+-- \( M-1-p \) extra elements on the left, so we have
+-- \( (N-1) - J + 1 = (M-1) - p \), and \( J = N-M+1+p \). Since subscripts
+-- begin with 0, we must drop the first \( J \) elements of \( x \) to get the
+-- padding on the left.
+--
+-- Consequently, padding on the left is determined by dropping \( N-M+1+p \) elements of \( x \), and
+-- padding on the right is determined by taking the first p elements of \( x \). The
+-- circular convolution is then found by breaking the extended list into sublists of
+-- length \( M \), and taking the inner product of each of these sublists with
+-- \( h \) reversed (see source code).
+--
+-- === __Examples:__
+--
+-- >>> cconv1d [1..4] [1..4]
+--
+-- > [28,26,20,26]
+--
+-- Agrees with implementation in __NumericalTours__, where circular
+-- convolutions are centered.
+--
+cconv1d :: (Num a) => [a] -> [a] -> [a]
+cconv1d hs xs =
+  let m = length hs
+      n = length xs
+      p = (m-1) `div` 2
+      padLeft  = drop (n-m+1+p) xs
+      padRight = take p xs
+      ts  = padLeft ++ xs ++ padRight
+  in map (sum . zipWith (*) (reverse hs)) (sublists m ts)
 
--- |'cconv1dnc' is the 1-dimensional non-centered circular convolution. 
---         
--- > Usage: cconv1dnc h x        
+-- |'cconv1dnc' standard circular convolution without centering.
+-- Same as 'cconv1d' with \( p = 0 \). No padding on the right
+-- is needed in this case.
 --        
--- * `x` - input signal        
--- * `h` - filter to convolve with        
---        
--- > R equivalent: convolve(h,x,type='circular',conj=FALSE)        
---        
-cconv1dnc :: [Double] -> [Double] -> [Double]
-cconv1dnc h x = [sum [h!!i * x!!((j-i) `mod` n) | i <- [0..(m-1)]] | j <- [0..(n-1)] ] 
-  where m = length h
-        n = length x
+-- === __Examples:__
+--
+-- >>> cconv1dnc [1..4] [1..4]
+--
+-- > [26,28,26,20]
+--
+-- > R equivalent: convolve(1:4,1:4,type='circular',conj=FALSE)
+-- Circular convolutions are not centered in R.
+--
+cconv1dnc :: (Num a) => [a] -> [a] -> [a]
+cconv1dnc hs xs =
+  let m = length hs
+      n = length xs
+      padLeft  = drop (n-m+1) xs
+      ts  = padLeft ++ xs
+  in map (sum . zipWith (*) (reverse hs)) (sublists m ts)
 
 -- |'conv1d' is the 1-dimensional conventional convolution (no FFT).
 --        
@@ -240,20 +282,49 @@ cconv1dnc h x = [sum [h!!i * x!!((j-i) `mod` n) | i <- [0..(m-1)]] | j <- [0..(n
 --        
 -- * `x` - input signal        
 -- * `h` - filter to convolve with.        
---        
--- > Python equivalent: np.convolve([1,2,3,4],[1,2,3,4])        
--- > Octave equivalent: conv(1:4,1:4)        
--- > R equivalent: convolve(h,rev(x),type='open')
---        
-conv1d :: [Double] -> [Double] -> [Double]
-conv1d h x = [sum [h!!i * zeropad x (j-i) | i <- [0..(m-1)]] | j <- [0..(n+m-2)] ] 
-  where m = length h
-        n = length x
+-- 
+-- === __Examples:__
+--
+-- >>> conv1d [1..4] [1..4]
+--
+-- > [1,4,10,20,25,24,16]
+--
+-- Standard (non-circular) convolution with zero-padding...
+--
+-- > R equivalent: convolve(1:4,rev(1:4), type='open')
+-- > Python: np.convolve([1,2,3,4], [1,2,3,4]
+-- > Octave/Matlab: conv(1:4,1:4)
+--
+conv1d :: (Num a) => [a] -> [a] -> [a]
+conv1d hs xs =
+  let pad = replicate ((length hs) - 1) 0
+      ts  = pad ++ xs
+  in map (sum . zipWith (*) (reverse hs)) (init $ tails ts)                    
+
+-- Get list of sublists of a fixed length, with no short ones.
+-- Second pattern for go kicks in when the second argument is
+-- a list with a single element. This avoids filtering out
+-- short lists using length conditional, and works for infinite
+-- lists.
+sublists :: (Num a) => Int -> [a] -> [[a]]
+sublists k lst = go lst (drop (k-1) lst)
+  where go l@(_:lt) (_:xs) = take k l : go lt xs
+        go _ _ = []
+        
+-- Shorter and less transparent version of sublists
+-- From stackoverflow (Willem Van Onsem)
+-- Here we are applying zipWith (const . take k) to (tails lst)        
+-- and (drop (k-1) lst). The latter list has n-k elements, and
+-- we don't care what they are, thanks to the const. These elements        
+-- determine how many items from (tails lst) are actually taken: only
+-- items of length k are taken!
+sublists' :: Int -> [a] -> [[a]]
+sublists' k lst = zipWith (const . take k) (tails lst) (drop (k-1) lst)
 
 -- From Daubechies Ten Lectures (p.195)
 -- For each N, g(k) = (-1)^k * h(2N + 1 - k)
 hcoef = [
--- N=2 (More precision in Numerical Recipes)
+-- N=2
   [ 0.4829629131445341
   , 0.8365163037378077
   , 0.2241438680420134

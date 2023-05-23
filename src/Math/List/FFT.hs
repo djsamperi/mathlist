@@ -147,7 +147,7 @@ import Data.List
 -- >>> t = take n $ iterate (+ dt) 0
 -- >>> f = take n $ iterate (+ df) 0
 -- >>> y = map ((:+ 0.0) . signal) t -- apply signal and complexify
--- >>> z = fft -- Fourier transform
+-- >>> z = fft y -- Fourier transform
 -- >>> mags = map magnitude z -- modulus of the complex numbers
 -- >>> [rgraph| plot(f_hs, mags_hs,type='l') |] -- show plot using HaskellR
 --
@@ -165,7 +165,8 @@ fft f = interleave [fft fe,fft fo']
              else n `div` 2
         fe = zipWith (+) (take n' f) (rotate n' f)
         fo = zipWith (-) (take n' f) (rotate n' f)
-        fo' = [z | k <- [0..(n'-1)], let z = fo!!k*alpha^k]
+        e = iterate (*alpha) 1.0
+        fo' = zipWith (*) fo e
         alpha = exp(-2*pi*i/fromIntegral n)
         interleave = concat . transpose
         i = 0 :+ 1
@@ -198,7 +199,8 @@ ifft f = interleave [ifft fe,ifft fo']
              else n `div` 2
         fe = zipWith (+) (take n' f) (rotate n' f)
         fo = zipWith (-) (take n' f) (rotate n' f)
-        fo' = [z | k <- [0..(n'-1)], let z = fo!!k*alpha^k]
+        e = iterate (*alpha) 1.0
+        fo' = zipWith (*) fo e
         alpha = exp(2*pi*i/fromIntegral n) -- only change for inverse
         interleave = concat . transpose
         i = 0 :+ 1

@@ -261,23 +261,25 @@ ift1d f = [z | k <- [0..(n-1)], let z = sum $ zipWith (*) (iterate (* alpha^k) 1
 -- \( p \) (which we can do without loss of generality), so the exponential factor in the equation for \( X(k\Delta f) \) is periodic with     
 -- period \( N \).        
 --        
--- In the standard discrete Fourier transform we define the time and frequency grid as follows:
--- \( t = j\Delta t \),       
--- for \( j = 0,1,2,...,N-1 \), and 
--- \( f = k\Delta f \), for \( k = 0,1,2,...,N-1 \). In terms of our approximation above, this implicitly
--- assumes that \( a = 0 \), so the exponential term in the expression for \( X(k\Delta f) \) does not        
--- appear. It also assumes that the zero frequency point is on the left edge where \( k = 0 \). It
--- follows from periodicity that        
--- \( X(-k\Delta f) = X((N-k)\Delta f) \), for        
--- \( k = N/2+1,N/2+2,...,N-1 \), so negative frequencies wrap around in a circular        
--- fashion and appear to the right of the mid point. In many applications it is more natural to
--- work with \( \tilde{X}(k) = X((k+N/2) \mod N) \), the circular rotation of $X$ to the left        
--- by \( N/2 \). This brings the zero frequency to the center of the range, and places the negative        
--- frequencies where we expect them to be. This is what 'fftshift' does.        
+-- It follows that \( X(k\Delta f) \) for \( k=0,1,2,...,N-1 \) can be extended
+-- periodically to a function \( \tilde{X}(k\Delta f) \) defined for all        
+-- \( k \), and by periodicity we have
+-- \( \tilde{X}(-k\Delta f) = \tilde{X}((N-k)\Delta f) \), so negative        
+-- frequencies wrap-around and appear to the right of \( k = N/2 \). it is
+-- often more convenient to shift the default window defined by
+-- \( k=0,1,2,...,N-1 \) to the left by \( N/2 \), and work with        
+-- \( \tilde{X}(k\Delta f) \), for \( k=-\frac{N}{2},...,\frac{N}{2}-1 \).
+-- Shifting the sampling window to the left is the same as shifting the       
+-- waveform \( k \rightarrow \tilde{X}(k\Delta f) \) to        
+-- the right, which due to periodicity amounts to circular shifting
+-- the sampled vector to the right (values falling off the right side        
+-- of the fixed window enter on the left).
 --        
--- After applying this transformation the frequency grid becomes \( f = -f_s/2 + k\Delta f \),        
--- for \( k=0,1,...,N-1 \), and we have \( -f_s/2 \leq f \lt f_s/2 \), which happens to be
--- the same as the restriction imposed by Shannon's sampling theorem.        
+-- 'fftshift' performs this circular shift and returns        
+-- \( \tilde{X}(f) \) for \( f = -f_s/2 + k\Delta f \),        
+-- for \( k=0,1,...,N-1 \). Note that \( -f_s/2 \leq f \lt f_s/2 \), 
+-- which is consistent with the restriction 
+-- imposed by Shannon's sampling theorem.        
 --         
 -- === __Examples:__
 --

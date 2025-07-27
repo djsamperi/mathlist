@@ -17,9 +17,35 @@ compression (in image analysis, for example).
 
 Only the 1D case is implemented here. Extension to higher dimensions
 is straightforward, but the list implementation used here may not
-be appropriate for this purpose. This implementation is suitable
+be appropriate for this purpose. Haskell mutable vectors could
+be used to address this issue, but this would fall outside the
+scope of this package: math using lists.
+This implementation is suitable
 for small or moderate sized 1D problems, and for understanding the
 underlying theory which does not change as the dimension increases.
+
+Moving from the continuous-time wavelet transform to the
+discrete-time wavelet transform computed here is a fairly complicated
+process that involves perodizing all wavelets and signal functions,
+and making adjustments at the boundaries to avoid "reflections."
+See __TourBook__ and __Data2021__ for details. From a practical
+point of view, it suffices to view the wavelet transform as the application
+of an inverible filter that reveals information about a sampled
+function at different sales, and the origin of the transform in
+continuous-time provides some intuition about how the information
+is represented. This is analogous to the relationship between the
+continuous-time Fourier transform the finite discrete Fourier transform
+of a sequence.
+
+The fact that functions are periodized in both cases means that
+the model may be quite inaccurate for points distant from the
+sampled points. Such discrepancies are common in local polynomial
+approximations, and might be compared with
+"hallucinations" that are sometimes observed in modern large language 
+models like ChatGPT (an important difference is that the latter
+hallucinations are not easily explained). Many signal processing
+problems focus on the study of signals in a sampled window, with little
+concern for what happens outside of this window.
 
 References on wavelets with abbreviations:
 
@@ -43,6 +69,7 @@ module Math.List.Wavelet (
 
 import Data.Complex
 import Data.List
+import Debug.Trace
 
 -- |'wt1d' is the 1-dimensional discrete wavelet transform.
 --
@@ -208,15 +235,18 @@ upsample (x:xs) = (x:(0:upsample xs))
 -- * `x` - input signal        
 -- * `h` - filter to convolve with.
 --        
--- Let 'N' = length x, and 'M' = length h, and assume \( M \leq N \). The
+-- Let 'N' = length x, and 'M' = length h. It is not assumed (as we did
+-- in earlier versions) that \( M \leq N \), because this is not always
+-- the case when computing wavelet transforms. The
 -- convolution with centering offset 'p' is defined by
 -- \[
 -- y_i = \sum_{j=0}^{M-1} h_j x_{i-j+p},\qquad i=0,1,2,...,N-1,
 -- \]
 -- where \( p = (M-1)/2 \) when M is odd. The idea is to have
 -- each \( y_i \) equal a weighted average of values of \( x_j \)
--- for \( j \) near \( i \), because \( i \) is in the middle of
--- the support of \( h \), approximately.
+-- for \( j \) near \( i \). Note that the sequences here are
+-- defined on \( \mathbb{Z}_N \), integeres modulo \( N \), so
+-- negative subscripts wrap.
 --
 -- For this to be well-defined for the specified range of \( i \),
 -- \( x_i \) must be extended periodically outside of the
@@ -228,11 +258,16 @@ upsample (x:xs) = (x:(0:upsample xs))
 -- \( M-1-p \) extra elements on the left, so we have
 -- \( (N-1) - J + 1 = (M-1) - p \), and \( J = N-M+1+p \). Since subscripts
 -- begin with 0, we must drop the first \( J \) elements of \( x \) to get the
--- padding on the left.
+-- padding on the left. But as we observed above we may have \( M \geq N \),
+-- and several copies of \( x \) may need to be prepended, along with a
+-- remainder (see the source code for details).
 --
 -- Consequently, padding on the left is determined by dropping \( N-M+1+p \) elements of \( x \), and
--- padding on the right is determined by taking the first p elements of \( x \). The
--- circular convolution is then found by breaking the extended list into sublists of
+-- padding on the right is determined by taking the first p elements of \( x \).
+-- When \( M \geq N \) we may need to prepend or append one or more copies
+-- of \( x \).
+--
+-- The circular convolution is now found by breaking the extended list into sublists of
 -- length \( M \), and taking the inner product of each of these sublists with
 -- \( h \) reversed (see source code).
 --
@@ -250,8 +285,12 @@ cconv1d hs xs =
   let m = length hs
       n = length xs
       p = (m-1) `div` 2
-      padLeft  = drop (n-m+1+p) xs
-      padRight = take p xs
+      leftCopies = (m-1-p) `div` n
+      leftRemainder = (m-1-p) `mod` n
+      rightCopies = p `div` n
+      rightRemainder = p `mod` n
+      padLeft = (drop (n-leftRemainder) xs) ++ concat (replicate leftCopies xs)
+      padRight = concat (replicate rightCopies xs) ++ take rightRemainder xs
       ts  = padLeft ++ xs ++ padRight
   in map (sum . zipWith (*) (reverse hs)) (sublists m ts)
 
@@ -272,7 +311,9 @@ cconv1dnc :: (Num a) => [a] -> [a] -> [a]
 cconv1dnc hs xs =
   let m = length hs
       n = length xs
-      padLeft  = drop (n-m+1) xs
+      leftCopies = (m-1) `div` n
+      leftRemainder = (m-1) `mod` n
+      padLeft = (drop (n-leftRemainder) xs) ++ concat (replicate leftCopies xs)
       ts  = padLeft ++ xs
   in map (sum . zipWith (*) (reverse hs)) (sublists m ts)
 
@@ -283,6 +324,67 @@ cconv1dnc hs xs =
 -- * `x` - input signal        
 -- * `h` - filter to convolve with.        
 -- 
+-- In the conventional convolution used for signal processing it is
+-- often the case that the support \( M \) of the impulse response \( h \)
+-- is much smaller than the support \( N \) of \( x \). The convolution can
+-- be written
+-- \[
+-- y_i = \sum_{j=-K}^L h_j x_{i-j},\qquad i=1,2,\cdots,N-1.
+-- \]
+-- To prevent wrap-around from the end of \( x \), we can arrange for
+-- the last \( L \) values to be zero: 
+-- \( x_{N-1} = x_{N-2} = \cdots = x_{N-L} = 0 \). To prevent spoiling
+-- \( y_{N-L} \) with wrap-around from the beginning of \( x \) we need
+-- \( N-L+K \leq N-1 \), or \( L \geq K+1 \). With the latter constraint
+-- it follows that we can prevent aliasing from either end of \( x \)
+-- by padding \( x \) with \( L \) zeros, so \( \tilde{x} \) has length
+-- \( N + L \). We can extend \( h \) to the same length by adding zeros
+-- to the right of the upper limit of its support, so \( \tilde{h} \)
+-- takes the form
+-- \[
+-- \tilde{h} = (h_0, h_1,\ldots,h_L,0,0,\ldots,0,0,h_{-K},\ldots,h_{-2},h_{-1}),
+-- \]
+-- where there are \( N-K-1 \) zeros in the middle part of \( \tilde{h} \), and
+-- the wrap-around follows because we are working with sequences defined
+-- on \( \mathbb{Z}_{N+L} \).
+--
+-- Since this function is not used for wavelet analysis, let's simplify
+-- the discussion by focusing on the standard case where
+-- \( K = 0 \), so \( L = M-1 \), and the
+-- convolution reduces to
+-- \[
+-- y_i = \sum_{j=0}^{M-1} \tilde{h}_j \tilde{x}_{i-j},\qquad i=1,2,\ldots,N-1,
+-- \]
+-- where \( \tilde{h} \) is \( h \) with \( N-1 \) zeros appended, and
+-- \( \tilde{x} \) is \( x \) with \( M-1 \) zeros appended. This convolution
+-- can be done using the circular convolution without centering, 'cconv1dnc'.
+-- The zero-padding prevents any undesired wrap-around.
+--
+-- Using R, C++ or other languages that permit mutation this
+-- convolution is sometimes computed as follows
+--
+-- @
+--  for(i in 0:(N-1))
+--    for(j in 0:(M-1)
+--      c[i+j] += h[i]*x[j]
+-- @
+--where \( c \) is the resulting convolution of length \( N + M - 1 \).
+--
+-- This follows from the power series computation
+-- \[
+-- (\sum_{i=0}^{A-1} a_i X^i)(\sum_{j=0}^{B-1} b_j X^j) 
+-- = \sum_{k=0}^{A+B-2} c_k X^k,
+-- \]
+-- where 
+-- \[
+-- c_k = \sum_{i+j=k} a_i b_j = \sum_i a_i b_{k-i} 
+-- =  \sum_j a_{k-j} b_j, 
+-- \]
+-- and the last equality follows from the fact that convolution is
+-- commutative (all series are assumed to be 
+-- defined on \( \mathbb{Z}_{A+B-1} \) ), with zero padding where
+-- needed.
+--
 -- === __Examples:__
 --
 -- >>> conv1d [1..4] [1..4]
@@ -297,9 +399,11 @@ cconv1dnc hs xs =
 --
 conv1d :: (Num a) => [a] -> [a] -> [a]
 conv1d hs xs =
-  let pad = replicate ((length hs) - 1) 0
-      ts  = pad ++ xs
-  in map (sum . zipWith (*) (reverse hs)) (init $ tails ts)                    
+  let padh = replicate ((length xs) - 1) 0
+      padx = replicate ((length hs) - 1) 0
+      xp = xs ++ padx
+      hp = hs ++ padh
+  in cconv1dnc hp xp
 
 -- Get list of sublists of a fixed length, with no short ones.
 -- Second pattern for go kicks in when the second argument is

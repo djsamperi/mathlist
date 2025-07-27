@@ -1,6 +1,6 @@
 cabal-version:       >=1.10
 name:                mathlist
-version:             0.2.0.0
+version:             0.3.0.0
 synopsis:            Math using lists, including FFT and Wavelet
 description:
   This package contains standard one-dimensional mathematical transforms (FFT, Wavelet, etc.) applied to Haskell lists. Documentation including mathematical details and examples are included to facilitate use with small or moderate sized problems, and for educational purposes. The algorithms have a very consise representation in Haskell that is a direct translation of the mathematical formulations.
@@ -10,11 +10,13 @@ license:             BSD3
 license-file:        LICENSE
 author:              Dominick Samperi
 maintainer:          djsamperi@gmail.com
+homepage:            https://HumanGarden.net
 category:            Math, Numerics, Education
 build-type:          Simple
 
 extra-source-files:
   CHANGELOG.md
+  stack.yaml
   
 Library
   Build-depends:      base == 4.*
